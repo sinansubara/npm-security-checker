@@ -12,12 +12,14 @@
 # ║    --path <dir>  / -p <dir>   scan only this dir (replaces config)      ║
 # ║    --append      / -a         append --path dir on top of config dirs    ║
 # ║    --branches    / -b         also scan all git branches (slow)          ║
+# ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300) ║
 # ║                                                                          ║
 # ║  Examples:                                                               ║
 # ║    ./pkg-audit.sh -p /my/project                                         ║
 # ║    ./pkg-audit.sh -p /my/project -a          # append to config dirs     ║
 # ║    ./pkg-audit.sh -p /my/project -a -b       # + branch scan             ║
 # ║    ./pkg-audit.sh --branches                 # config dirs + branches    ║
+# ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files       ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -82,6 +84,7 @@ FOUND=0
 # --path/-p  : target directory (replaces USER_SCAN_DIRS unless --append is set)
 # --append/-a: boolean — keep USER_SCAN_DIRS and add --path dir on top
 # --branches/-b: enable branch scanning
+# --limit/-l : override SCAN_LIMIT
 CLI_PATH=""
 CLI_APPEND=false
 _args=("$@")
@@ -91,6 +94,21 @@ while [ $_i -lt ${#_args[@]} ]; do
   case "$arg" in
     --branches|-b) CHECK_ALL_BRANCHES=true ;;
     --append|-a)   CLI_APPEND=true ;;
+    --limit|-l)
+      _i=$(( _i + 1 ))
+      val="${_args[$_i]:-}"
+      if [[ "$val" =~ ^[0-9]+$ ]] && [ "$val" -gt 0 ]; then
+        SCAN_LIMIT="$val"
+      else
+        echo -e "${YELLOW}  ⚠ --limit requires a positive integer: ${val} — ignoring.${NC}"
+      fi ;;
+    --limit=*|-l=*)
+      val="${arg#*=}"
+      if [[ "$val" =~ ^[0-9]+$ ]] && [ "$val" -gt 0 ]; then
+        SCAN_LIMIT="$val"
+      else
+        echo -e "${YELLOW}  ⚠ --limit requires a positive integer: ${val} — ignoring.${NC}"
+      fi ;;
     --path|-p)
       _i=$(( _i + 1 ))
       val="${_args[$_i]:-}"
