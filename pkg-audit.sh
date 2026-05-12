@@ -8,12 +8,16 @@
 # ║    chmod +x pkg-audit.sh                                                 ║
 # ║    ./pkg-audit.sh                                                        ║
 # ║                                                                          ║
-# ║  Scan an extra folder on the fly (without editing the script):           ║
-# ║    ./pkg-audit.sh /some/other/path                                       ║
+# ║  Flags (all optional, order-independent):                                ║
+# ║    --path <dir>  / -p <dir>   scan only this dir (replaces config)      ║
+# ║    --append      / -a         append --path dir on top of config dirs    ║
+# ║    --branches    / -b         also scan all git branches (slow)          ║
 # ║                                                                          ║
-# ║  Also scan all git branches (slow on large machines):                    ║
-# ║    ./pkg-audit.sh --branches                                             ║
-# ║    ./pkg-audit.sh /some/other/path --branches                            ║
+# ║  Examples:                                                               ║
+# ║    ./pkg-audit.sh -p /my/project                                         ║
+# ║    ./pkg-audit.sh -p /my/project -a          # append to config dirs     ║
+# ║    ./pkg-audit.sh -p /my/project -a -b       # + branch scan             ║
+# ║    ./pkg-audit.sh --branches                 # config dirs + branches    ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -27,7 +31,7 @@
 # ~ is expanded automatically.
 USER_SCAN_DIRS=(
   # "~"               # CAUTION: scanning your entire home can be slow — noisy dirs are auto-skipped (node_modules, .npm, .cache, .nvm…)
-  # "~/workspace"     # <- use a specific folder to speed things up
+  "~/workspace"     # <- use a specific folder to speed things up
   # "~/side-projects" # <- uncomment or add more root folders as needed
   # "/opt/company"
 )
@@ -74,26 +78,51 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'; NC='
 
 FOUND=0
 
-# Parse CLI arguments first so we know if a directory was explicitly passed
-CLI_DIRS=()
-for arg in "$@"; do
+# Parse CLI arguments
+# --path/-p  : target directory (replaces USER_SCAN_DIRS unless --append is set)
+# --append/-a: boolean — keep USER_SCAN_DIRS and add --path dir on top
+# --branches/-b: enable branch scanning
+CLI_PATH=""
+CLI_APPEND=false
+_args=("$@")
+_i=0
+while [ $_i -lt ${#_args[@]} ]; do
+  arg="${_args[$_i]}"
   case "$arg" in
-    --branches) CHECK_ALL_BRANCHES=true ;;
+    --branches|-b) CHECK_ALL_BRANCHES=true ;;
+    --append|-a)   CLI_APPEND=true ;;
+    --path|-p)
+      _i=$(( _i + 1 ))
+      val="${_args[$_i]:-}"
+      if [ -d "$val" ]; then
+        CLI_PATH="$val"
+      else
+        echo -e "${YELLOW}  ⚠ --path not found: ${val} — ignoring.${NC}"
+      fi ;;
+    --path=*|-p=*)
+      val="${arg#*=}"
+      if [ -d "$val" ]; then
+        CLI_PATH="$val"
+      else
+        echo -e "${YELLOW}  ⚠ --path not found: ${val} — ignoring.${NC}"
+      fi ;;
     -*) echo -e "${YELLOW}  ⚠ Unknown flag: ${arg} — ignoring.${NC}" ;;
     *)  if [ -d "$arg" ]; then
-          CLI_DIRS+=("$arg")
+          CLI_PATH="$arg"
         else
           echo -e "${YELLOW}  ⚠ Path not found: ${arg} — ignoring.${NC}"
         fi ;;
   esac
+  _i=$(( _i + 1 ))
 done
 
-# If a directory was passed on the CLI, use only that — skip USER_SCAN_DIRS.
-# Otherwise expand USER_SCAN_DIRS as usual.
+# Build RESOLVED_DIRS:
+#   - No --path given          → use USER_SCAN_DIRS
+#   - --path only              → use only that path (replace USER_SCAN_DIRS)
+#   - --path + --append        → use USER_SCAN_DIRS + that path
+#   - --append without --path  → same as no args (--append alone is a no-op)
 RESOLVED_DIRS=()
-if [ ${#CLI_DIRS[@]} -gt 0 ]; then
-  RESOLVED_DIRS=("${CLI_DIRS[@]}")
-else
+if [ -z "$CLI_PATH" ] || [ "$CLI_APPEND" = true ]; then
   for d in "${USER_SCAN_DIRS[@]}"; do
     expanded="${d/#\~/$HOME}"
     if [ -d "$expanded" ]; then
@@ -103,6 +132,7 @@ else
     fi
   done
 fi
+[ -n "$CLI_PATH" ] && RESOLVED_DIRS+=("$CLI_PATH")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
