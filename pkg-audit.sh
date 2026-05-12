@@ -74,28 +74,35 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'; NC='
 
 FOUND=0
 
-# Expand ~ in each user-defined dir, then parse CLI arguments
-RESOLVED_DIRS=()
-for d in "${USER_SCAN_DIRS[@]}"; do
-  expanded="${d/#\~/$HOME}"
-  if [ -d "$expanded" ]; then
-    RESOLVED_DIRS+=("$expanded")
-  else
-    echo -e "${YELLOW}  ⚠ Directory not found, skipping: ${expanded}${NC}"
-  fi
-done
-
+# Parse CLI arguments first so we know if a directory was explicitly passed
+CLI_DIRS=()
 for arg in "$@"; do
   case "$arg" in
     --branches) CHECK_ALL_BRANCHES=true ;;
     -*) echo -e "${YELLOW}  ⚠ Unknown flag: ${arg} — ignoring.${NC}" ;;
     *)  if [ -d "$arg" ]; then
-          RESOLVED_DIRS+=("$arg")
+          CLI_DIRS+=("$arg")
         else
           echo -e "${YELLOW}  ⚠ Path not found: ${arg} — ignoring.${NC}"
         fi ;;
   esac
 done
+
+# If a directory was passed on the CLI, use only that — skip USER_SCAN_DIRS.
+# Otherwise expand USER_SCAN_DIRS as usual.
+RESOLVED_DIRS=()
+if [ ${#CLI_DIRS[@]} -gt 0 ]; then
+  RESOLVED_DIRS=("${CLI_DIRS[@]}")
+else
+  for d in "${USER_SCAN_DIRS[@]}"; do
+    expanded="${d/#\~/$HOME}"
+    if [ -d "$expanded" ]; then
+      RESOLVED_DIRS+=("$expanded")
+    else
+      echo -e "${YELLOW}  ⚠ Directory not found, skipping: ${expanded}${NC}"
+    fi
+  done
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
