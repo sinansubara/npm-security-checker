@@ -22,9 +22,9 @@
 # Adding ~/workspace will automatically scan every repository inside it.
 # ~ is expanded automatically.
 USER_SCAN_DIRS=(
-  # "~"               # <- CAUTION: scanning your entire home can be very slow if you have many repos. Use specific folders if possible.
-  # "~/workspace"     # <- your main workspace folder with all repos inside
-  # "~/side-projects" # <- uncomment or add more root folders as needed
+  # "~"               #! <- CAUTION: scanning your entire home can be very slow if you have many repos. Use specific folders if possible.
+  # "~/workspace"     #  <- your main workspace folder with all repos inside
+  # "~/side-projects" #  <- uncomment or add more root folders as needed
   # "/opt/company"
 )
 
