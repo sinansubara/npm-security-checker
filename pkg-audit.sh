@@ -85,7 +85,7 @@ done
 
 flag_hit() {
   local label="$1" pkg="$2" ver="$3" location="$4"
-  echo -e "  ${RED}✗ COMPROMISED ${label}: ${BOLD}${pkg}@${ver}${NC}"
+  echo -e "  ${RED}${BOLD}✗ COMPROMISED${NC} ${RED}${label}: ${BOLD}${pkg}@${ver}${NC}"
   echo -e "    ${RED}↳ ${location}${NC}"
   FOUND=$((FOUND + 1))
 }
