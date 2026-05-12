@@ -10,6 +10,10 @@
 # ║                                                                          ║
 # ║  Scan an extra folder on the fly (without editing the script):           ║
 # ║    ./pkg-audit.sh /some/other/path                                       ║
+# ║                                                                          ║
+# ║  Also scan all git branches (slow on large machines):                    ║
+# ║    ./pkg-audit.sh --branches                                             ║
+# ║    ./pkg-audit.sh /some/other/path --branches                            ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -22,9 +26,9 @@
 # Adding ~/workspace will automatically scan every repository inside it.
 # ~ is expanded automatically.
 USER_SCAN_DIRS=(
-  # "~"               #! <- CAUTION: scanning your entire home can be very slow if you have many repos. Use specific folders if possible.
-  # "~/workspace"     #  <- your main workspace folder with all repos inside
-  # "~/side-projects" #  <- uncomment or add more root folders as needed
+  # "~"               # CAUTION: scanning your entire home can be slow — noisy dirs are auto-skipped (node_modules, .npm, .cache, .nvm…)
+  # "~/workspace"     # <- use a specific folder to speed things up
+  # "~/side-projects" # <- uncomment or add more root folders as needed
   # "/opt/company"
 )
 
@@ -32,7 +36,8 @@ USER_SCAN_DIRS=(
 # (not just the currently checked-out working tree).
 # This uses "git show branch:package-lock.json" — no checkout needed.
 # Can be slower on repos with many branches.
-CHECK_ALL_BRANCHES=true
+# Override any time with: ./pkg-audit.sh --branches
+CHECK_ALL_BRANCHES=false
 
 # Maximum number of package-lock.json files to inspect in the working tree
 # (safety cap). Raise this if you have a very large number of repositories.
@@ -69,7 +74,7 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'; NC='
 
 FOUND=0
 
-# Expand ~ in each user-defined dir, then add the optional CLI argument
+# Expand ~ in each user-defined dir, then parse CLI arguments
 RESOLVED_DIRS=()
 for d in "${USER_SCAN_DIRS[@]}"; do
   expanded="${d/#\~/$HOME}"
@@ -79,7 +84,18 @@ for d in "${USER_SCAN_DIRS[@]}"; do
     echo -e "${YELLOW}  ⚠ Directory not found, skipping: ${expanded}${NC}"
   fi
 done
-[ -n "${1:-}" ] && [ -d "$1" ] && RESOLVED_DIRS+=("$1")
+
+for arg in "$@"; do
+  case "$arg" in
+    --branches) CHECK_ALL_BRANCHES=true ;;
+    -*) echo -e "${YELLOW}  ⚠ Unknown flag: ${arg} — ignoring.${NC}" ;;
+    *)  if [ -d "$arg" ]; then
+          RESOLVED_DIRS+=("$arg")
+        else
+          echo -e "${YELLOW}  ⚠ Path not found: ${arg} — ignoring.${NC}"
+        fi ;;
+  esac
+done
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -171,9 +187,20 @@ check_npm_working_tree() {
 
   mapfile -t LOCKFILES < <(
     find "${RESOLVED_DIRS[@]}" \
-      -name "package-lock.json" \
-      -not -path "*/node_modules/*" \
-      -not -path "*/.git/*" \
+      \( \
+        -name "node_modules" \
+        -o -name ".git" \
+        -o -name ".npm" \
+        -o -name ".cache" \
+        -o -name ".yarn" \
+        -o -name ".nvm" \
+        -o -name ".pnpm-store" \
+        -o -name ".venv" \
+        -o -name "venv" \
+        -o -name ".docker" \
+        -o -name ".m2" \
+      \) -prune \
+      -o -name "package-lock.json" -print \
       2>/dev/null | sort -u | head -n "$SCAN_LIMIT"
   )
 
@@ -367,7 +394,7 @@ print_summary() {
 
 print_header
 
-if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ -z "${1:-}" ]; then
+if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ ${#RESOLVED_DIRS[@]} -eq 0 ]; then
   echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${YELLOW}║  ⚠  No scan directories configured!                      ║${NC}"
   echo -e "${YELLOW}║     Open pkg-audit.sh and add paths to USER_SCAN_DIRS.   ║${NC}"
