@@ -366,6 +366,15 @@ print_summary() {
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 print_header
+
+if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ -z "${1:-}" ]; then
+  echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${YELLOW}║  ⚠  No scan directories configured!                      ║${NC}"
+  echo -e "${YELLOW}║     Open pkg-audit.sh and add paths to USER_SCAN_DIRS.   ║${NC}"
+  echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+fi
+
 check_npm_global
 check_npm_working_tree
 check_npm_branches
