@@ -65,7 +65,7 @@ PIP_COMPROMISED=(
 # └──────────────────────────────────────────────────────────────────────────┘
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; BOLD='\033[1m'; NC='\033[0m'
 
 FOUND=0
 
@@ -288,7 +288,7 @@ check_npm_branches() {
           repo_header_printed=1
         fi
         if [ "$branch_header_printed" -eq 0 ]; then
-          echo -e "  ${BLUE}   ⎇  branch: ${branch}${NC}"
+          echo -e "  ${MAGENTA}   ⎇  branch: ${branch}${NC}"
           branch_header_printed=1
         fi
 
