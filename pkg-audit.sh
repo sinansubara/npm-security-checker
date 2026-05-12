@@ -342,7 +342,7 @@ check_pip() {
 print_header() {
   echo ""
   echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}║         NPM / Pip Security Checker                      ║${NC}"
+  echo -e "${BOLD}║         NPM / Pip Security Checker                       ║${NC}"
   echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
   echo -e "  Date : $(date)"
   echo -e "  Host : $(hostname)  |  User: $(whoami)"
@@ -352,11 +352,12 @@ print_header() {
 print_summary() {
   echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
   if [ "$FOUND" -eq 0 ]; then
-    echo -e "${BOLD}║  ${GREEN}✓  No compromised packages found. You're clear!${BOLD}        ║${NC}"
+    echo -e "${BOLD}║  ${GREEN}✓  No compromised packages found. You're clear!${NC}${BOLD}         ║${NC}"
   else
-    echo -e "${BOLD}║  ${RED}✗  ${FOUND} compromised package(s) detected!${BOLD}                 ║${NC}"
-    echo -e "${BOLD}║  ${RED}   → Rotate ALL secrets in affected environments.${BOLD}       ║${NC}"
-    echo -e "${BOLD}║  ${RED}   → Remove or downgrade the packages immediately.${BOLD}     ║${NC}"
+    printf -v _pad '%*s' $(( 20 - ${#FOUND} )) ""
+    echo -e "${BOLD}║  ${RED}✗  ${FOUND} compromised package(s) detected!${NC}${BOLD}${_pad}║${NC}"
+    echo -e "${BOLD}║  ${RED}   → Rotate ALL secrets in affected environments.${NC}${BOLD}       ║${NC}"
+    echo -e "${BOLD}║  ${RED}   → Remove or downgrade the packages immediately.${NC}${BOLD}      ║${NC}"
   fi
   echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
   echo ""
