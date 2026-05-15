@@ -229,6 +229,19 @@ for pkg, versions in seen.items():
 '
 }
 
+# Portable array-from-stdin loader: _readarray VARNAME < <(command)
+# Uses mapfile on bash 4+ (fast built-in); falls back to while-read on bash 3.2 (macOS).
+_readarray() {
+  local _var="$1"
+  if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then
+    mapfile -t "$_var"
+  else
+    local _tmp=()
+    while IFS= read -r _line; do _tmp+=("$_line"); done
+    eval "${_var}=(\"\${_tmp[@]:-}\")"
+  fi
+}
+
 # Download URL $1 to file $2 using curl or wget. Returns 0 on success.
 _fetch_url() {
   local url="$1" dest="$2"
@@ -266,7 +279,7 @@ load_advisories() {
     [ -f "$npm_cache" ] && npm_source="cache"
   fi
   if [ "$npm_source" != "unavailable" ]; then
-    mapfile -t NPM_COMPROMISED < <(_parse_advisory_json "$npm_cache")
+    _readarray NPM_COMPROMISED < <(_parse_advisory_json "$npm_cache")
     [ "${#NPM_COMPROMISED[@]}" -eq 0 ] && npm_source="unavailable"
   fi
 
@@ -280,7 +293,7 @@ load_advisories() {
     [ -f "$pip_cache" ] && pip_source="cache"
   fi
   if [ "$pip_source" != "unavailable" ]; then
-    mapfile -t PIP_COMPROMISED < <(_parse_advisory_json "$pip_cache")
+    _readarray PIP_COMPROMISED < <(_parse_advisory_json "$pip_cache")
     [ "${#PIP_COMPROMISED[@]}" -eq 0 ] && pip_source="unavailable"
   fi
 
@@ -293,8 +306,8 @@ load_advisories() {
   NPM_COMPROMISED+=("${USER_CUSTOM_NPM[@]:-}")
   PIP_COMPROMISED+=("${USER_CUSTOM_PIP[@]:-}")
 
-  mapfile -t NPM_COMPROMISED < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" | _dedup_advisory_list)
-  mapfile -t PIP_COMPROMISED < <(printf '%s\n' "${PIP_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  _readarray NPM_COMPROMISED < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  _readarray PIP_COMPROMISED < <(printf '%s\n' "${PIP_COMPROMISED[@]:-}" | _dedup_advisory_list)
 
   # Net-new custom packages = packages in final list that weren't in the pre-merge list.
   local _pre_names _net_new=0
@@ -418,7 +431,7 @@ check_npm_working_tree() {
     echo ""
   fi
 
-  mapfile -t LOCKFILES < <(
+  _readarray LOCKFILES < <(
     find "${RESOLVED_DIRS[@]}" \
       \( \
         -name "node_modules" \
@@ -494,7 +507,7 @@ check_npm_branches() {
   # Find git repo roots only (where .git is a directory, not a file).
   # Worktrees have .git as a file — they are already covered by the working
   # tree scan above, so we intentionally skip them here.
-  mapfile -t REPO_GIT_DIRS < <(
+  _readarray REPO_GIT_DIRS < <(
     find "${RESOLVED_DIRS[@]}" -name ".git" -type d 2>/dev/null | sort -u
   )
 
@@ -513,7 +526,7 @@ check_npm_branches() {
     current_branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null)
 
     # Collect local + remote branches, deduplicated, excluding current
-    mapfile -t BRANCHES < <(
+    _readarray BRANCHES < <(
       {
         git -C "$repo" branch --format='%(refname:short)' 2>/dev/null
         git -C "$repo" branch -r --format='%(refname:short)' 2>/dev/null
