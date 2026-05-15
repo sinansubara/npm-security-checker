@@ -15,6 +15,8 @@
 # ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300) ║
 # ║    --no-global                skip global npm package check               ║
 # ║    --quiet       / -q         only print hits and errors (no safe lines)  ║
+# ║    --npm-only                 skip pip check entirely                    ║
+# ║    --pip-only                 skip all npm checks (global + working tree) ║
 # ║                                                                          ║
 # ║  Examples:                                                               ║
 # ║    ./pkg-audit.sh -p /my/project                                         ║
@@ -24,6 +26,8 @@
 # ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files       ║
 # ║    ./pkg-audit.sh --no-global                # skip global npm check      ║
 # ║    ./pkg-audit.sh -q                         # hits and errors only       ║
+# ║    ./pkg-audit.sh --npm-only                 # skip pip                   ║
+# ║    ./pkg-audit.sh --pip-only                 # skip all npm checks        ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -91,10 +95,14 @@ FOUND=0
 # --limit/-l : override SCAN_LIMIT
 # --no-global: skip global npm check
 # --quiet/-q : suppress safe/info lines, only show hits and errors
+# --npm-only : skip pip
+# --pip-only : skip all npm checks
 CLI_PATH=""
 CLI_APPEND=false
 SKIP_GLOBAL=false
 QUIET=false
+NPM_ONLY=false
+PIP_ONLY=false
 _args=("$@")
 _i=0
 while [ $_i -lt ${#_args[@]} ]; do
@@ -104,6 +112,8 @@ while [ $_i -lt ${#_args[@]} ]; do
     --append|-a)   CLI_APPEND=true ;;
     --no-global)   SKIP_GLOBAL=true ;;
     --quiet|-q)    QUIET=true ;;
+    --npm-only)    NPM_ONLY=true ;;
+    --pip-only)    PIP_ONLY=true ;;
     --limit|-l)
       _i=$(( _i + 1 ))
       val="${_args[$_i]:-}"
@@ -470,10 +480,10 @@ if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ ${#RESOLVED_DIRS[@]} -eq 0 ]; then
   echo ""
 fi
 
-[ "$SKIP_GLOBAL" = false ] && check_npm_global
-check_npm_working_tree
-check_npm_branches
-check_pip
+[ "$PIP_ONLY"  = false ] && [ "$SKIP_GLOBAL" = false ] && check_npm_global
+[ "$PIP_ONLY"  = false ] && check_npm_working_tree
+[ "$PIP_ONLY"  = false ] && check_npm_branches
+[ "$NPM_ONLY" = false ] && check_pip
 print_summary
 
 exit $FOUND   # 0 = clean, >0 = issues found (useful in CI pipelines)
