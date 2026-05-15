@@ -1,0 +1,19 @@
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Advisory cache (written by pkg-audit.sh at runtime) ──────────────────────
+# Do NOT commit the local cache — it belongs in ~/.cache/pkg-audit/
+# This entry guards against accidental placement in the repo root.
+*.cache/
+.cache/
+
+# ── Shell script test artefacts ───────────────────────────────────────────────
+*.log
