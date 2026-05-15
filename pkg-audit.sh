@@ -59,23 +59,22 @@ SCAN_LIMIT=300
 
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
-# │  ⚠️  PACKAGE LISTS — update when new advisories arrive                  │
-# │      Do not rename the variables or change the format.                  │
+# │  ➕  CUSTOM PACKAGES — optional user-defined additions                  │
+# │      The compromised-package lists are fetched automatically from       │
+# │      GitHub on each run and cached locally for offline use.             │
+# │      Add entries here only for packages not yet in the remote list.     │
 # │      Format: "package-name::bad_version1,bad_version2"                  │
 # └──────────────────────────────────────────────────────────────────────────┘
 
-NPM_COMPROMISED=(
-  "@tanstack/router-utils::1.161.11,1.161.14"
-  "@tanstack/router-core::1.169.5,1.169.8"
-  "@opensearch-project/opensearch::3.6.2"
-  "@uipath/docsai-tool::1.0.1"
-  "@uipath/packager-tool-apiworkflow::0.0.19"
+# Extra npm packages to flag (merged on top of the remote advisory list).
+USER_CUSTOM_NPM=(
+  # "my-internal-package::1.0.0,1.0.1"
   "gsap::3.12.7"
 )
 
-PIP_COMPROMISED=(
-  # Add compromised Python packages here as advisories arrive, e.g.:
-  # "some-python-package::1.2.3"
+# Extra pip packages to flag (merged on top of the remote advisory list).
+USER_CUSTOM_PIP=(
+  # "my-internal-lib::2.3.4"
 )
 
 
@@ -171,6 +170,110 @@ if [ -z "$CLI_PATH" ] || [ "$CLI_APPEND" = true ]; then
   done
 fi
 [ -n "$CLI_PATH" ] && RESOLVED_DIRS+=("$CLI_PATH")
+
+# ── Advisory loading ─────────────────────────────────────────────────────────
+
+# Remote advisory URLs — raw GitHub content from the default branch.
+REMOTE_NPM_URL="https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/npm.json"
+REMOTE_PIP_URL="https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/pip.json"
+
+# Parse a JSON advisory file (path $1) → prints "name::v1,v2" per package.
+_parse_advisory_json() {
+  python3 -c '
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+    for p in data.get("packages", []):
+        versions = ",".join(p.get("compromised_versions", []))
+        if versions:
+            print(p["name"] + "::" + versions)
+except Exception:
+    pass
+' "$1" 2>/dev/null
+}
+
+# Download URL $1 to file $2 using curl or wget. Returns 0 on success.
+_fetch_url() {
+  local url="$1" dest="$2"
+  if command -v curl &>/dev/null; then
+    curl -sf --max-time 8 --retry 1 "$url" -o "$dest" 2>/dev/null
+  elif command -v wget &>/dev/null; then
+    wget -q --timeout=8 --tries=2 -O "$dest" "$url" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+# Populate NPM_COMPROMISED and PIP_COMPROMISED by merging:
+#   1. remote JSON from GitHub  (fetched fresh on each run)
+#   2. local cache              (used if remote is unreachable)
+# then appends USER_CUSTOM_NPM / USER_CUSTOM_PIP on top.
+# If neither source is available, prints a warning and continues with
+# USER_CUSTOM_* entries only (which may be an empty list).
+load_advisories() {
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pkg-audit"
+  local npm_cache="$cache_dir/npm.json"
+  local pip_cache="$cache_dir/pip.json"
+  local npm_source="unavailable" pip_source="unavailable"
+  NPM_COMPROMISED=(); PIP_COMPROMISED=()
+
+  mkdir -p "$cache_dir" 2>/dev/null
+
+  # ── npm ──
+  rm -f "${npm_cache}.tmp" 2>/dev/null
+  if _fetch_url "$REMOTE_NPM_URL" "${npm_cache}.tmp" && \
+     mv "${npm_cache}.tmp" "$npm_cache" 2>/dev/null; then
+    npm_source="remote"
+  else
+    rm -f "${npm_cache}.tmp" 2>/dev/null
+    [ -f "$npm_cache" ] && npm_source="cache"
+  fi
+  if [ "$npm_source" != "unavailable" ]; then
+    mapfile -t NPM_COMPROMISED < <(_parse_advisory_json "$npm_cache")
+    [ "${#NPM_COMPROMISED[@]}" -eq 0 ] && npm_source="unavailable"
+  fi
+
+  # ── pip ──
+  rm -f "${pip_cache}.tmp" 2>/dev/null
+  if _fetch_url "$REMOTE_PIP_URL" "${pip_cache}.tmp" && \
+     mv "${pip_cache}.tmp" "$pip_cache" 2>/dev/null; then
+    pip_source="remote"
+  else
+    rm -f "${pip_cache}.tmp" 2>/dev/null
+    [ -f "$pip_cache" ] && pip_source="cache"
+  fi
+  if [ "$pip_source" != "unavailable" ]; then
+    mapfile -t PIP_COMPROMISED < <(_parse_advisory_json "$pip_cache")
+    [ "${#PIP_COMPROMISED[@]}" -eq 0 ] && pip_source="unavailable"
+  fi
+
+  # ── Merge user-custom entries ──
+  NPM_COMPROMISED+=("${USER_CUSTOM_NPM[@]}")
+  PIP_COMPROMISED+=("${USER_CUSTOM_PIP[@]}")
+
+  # ── Advisory source status line (suppressed by --quiet) ──
+  if [ "$QUIET" = false ]; then
+    local npm_label pip_label
+    case "$npm_source" in
+      remote)      npm_label="${GREEN}remote${NC}" ;;
+      cache)       npm_label="${YELLOW}cache (offline)${NC}" ;;
+      unavailable) npm_label="${RED}unavailable — no cache${NC}" ;;
+    esac
+    case "$pip_source" in
+      remote)      pip_label="${GREEN}remote${NC}" ;;
+      cache)       pip_label="${YELLOW}cache (offline)${NC}" ;;
+      unavailable) pip_label="${YELLOW}none${NC}" ;;
+    esac
+    local total_custom=$(( ${#USER_CUSTOM_NPM[@]} + ${#USER_CUSTOM_PIP[@]} ))
+    local custom_note=""
+    [ "$total_custom" -gt 0 ] && \
+      custom_note="  +${total_custom} custom $([ "$total_custom" -eq 1 ] && echo entry || echo entries)"
+    echo -e "  ${CYAN}Advisories:${NC}  npm ← ${npm_label}  |  pip ← ${pip_label}${custom_note}"
+    [ "$npm_source" = "unavailable" ] && \
+      echo -e "  ${RED}⚠ npm advisory list unavailable. Run with internet access to warm the cache.${NC}"
+    echo ""
+  fi
+}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -471,6 +574,7 @@ print_summary() {
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 print_header
+load_advisories
 
 if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ ${#RESOLVED_DIRS[@]} -eq 0 ]; then
   echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
