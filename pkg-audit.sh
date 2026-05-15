@@ -13,6 +13,7 @@
 # ║    --append      / -a         append --path dir on top of config dirs    ║
 # ║    --branches    / -b         also scan all git branches (slow)          ║
 # ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300) ║
+# ║    --no-global                skip global npm package check               ║
 # ║                                                                          ║
 # ║  Examples:                                                               ║
 # ║    ./pkg-audit.sh -p /my/project                                         ║
@@ -20,6 +21,7 @@
 # ║    ./pkg-audit.sh -p /my/project -a -b       # + branch scan             ║
 # ║    ./pkg-audit.sh --branches                 # config dirs + branches    ║
 # ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files       ║
+# ║    ./pkg-audit.sh --no-global                # skip global npm check      ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -85,8 +87,10 @@ FOUND=0
 # --append/-a: boolean — keep USER_SCAN_DIRS and add --path dir on top
 # --branches/-b: enable branch scanning
 # --limit/-l : override SCAN_LIMIT
+# --no-global: skip global npm check
 CLI_PATH=""
 CLI_APPEND=false
+SKIP_GLOBAL=false
 _args=("$@")
 _i=0
 while [ $_i -lt ${#_args[@]} ]; do
@@ -94,6 +98,7 @@ while [ $_i -lt ${#_args[@]} ]; do
   case "$arg" in
     --branches|-b) CHECK_ALL_BRANCHES=true ;;
     --append|-a)   CLI_APPEND=true ;;
+    --no-global)   SKIP_GLOBAL=true ;;
     --limit|-l)
       _i=$(( _i + 1 ))
       val="${_args[$_i]:-}"
@@ -457,7 +462,7 @@ if [ ${#USER_SCAN_DIRS[@]} -eq 0 ] && [ ${#RESOLVED_DIRS[@]} -eq 0 ]; then
   echo ""
 fi
 
-check_npm_global
+[ "$SKIP_GLOBAL" = false ] && check_npm_global
 check_npm_working_tree
 check_npm_branches
 check_pip
