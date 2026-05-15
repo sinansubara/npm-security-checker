@@ -14,6 +14,7 @@
 # ║    --branches    / -b         also scan all git branches (slow)          ║
 # ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300) ║
 # ║    --no-global                skip global npm package check               ║
+# ║    --quiet       / -q         only print hits and errors (no safe lines)  ║
 # ║                                                                          ║
 # ║  Examples:                                                               ║
 # ║    ./pkg-audit.sh -p /my/project                                         ║
@@ -22,6 +23,7 @@
 # ║    ./pkg-audit.sh --branches                 # config dirs + branches    ║
 # ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files       ║
 # ║    ./pkg-audit.sh --no-global                # skip global npm check      ║
+# ║    ./pkg-audit.sh -q                         # hits and errors only       ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 
@@ -88,9 +90,11 @@ FOUND=0
 # --branches/-b: enable branch scanning
 # --limit/-l : override SCAN_LIMIT
 # --no-global: skip global npm check
+# --quiet/-q : suppress safe/info lines, only show hits and errors
 CLI_PATH=""
 CLI_APPEND=false
 SKIP_GLOBAL=false
+QUIET=false
 _args=("$@")
 _i=0
 while [ $_i -lt ${#_args[@]} ]; do
@@ -99,6 +103,7 @@ while [ $_i -lt ${#_args[@]} ]; do
     --branches|-b) CHECK_ALL_BRANCHES=true ;;
     --append|-a)   CLI_APPEND=true ;;
     --no-global)   SKIP_GLOBAL=true ;;
+    --quiet|-q)    QUIET=true ;;
     --limit|-l)
       _i=$(( _i + 1 ))
       val="${_args[$_i]:-}"
@@ -167,6 +172,7 @@ flag_hit() {
 }
 
 flag_warn() {
+  [ "$QUIET" = true ] && return
   local label="$1" pkg="$2" ver="$3" bad_versions="$4"
   echo -e "  ${YELLOW}⚠ Installed but safe version — ${label}: ${pkg}@${ver}${NC}"
   echo -e "    ${YELLOW}  (compromised versions: ${bad_versions})${NC}"
@@ -206,10 +212,10 @@ except Exception:
 # ── 1. Global npm ─────────────────────────────────────────────────────────────
 
 check_npm_global() {
-  echo -e "${CYAN}▶ 1 / Global npm packages${NC}"
+  [ "$QUIET" = false ] && echo -e "${CYAN}▶ 1 / Global npm packages${NC}"
 
   if ! command -v npm &>/dev/null; then
-    echo -e "  ${YELLOW}npm not found — skipping.${NC}\n"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}npm not found — skipping.${NC}\n"
     return
   fi
 
@@ -221,29 +227,31 @@ check_npm_global() {
     installed_ver=$(echo "$GLOBAL_LIST" | grep -F "${pkg}@" | sed "s|.*${pkg}@||" | tr -d ' \n')
 
     if [ -z "$installed_ver" ]; then
-      echo -e "  ${GREEN}✓ Not installed (global): ${pkg}${NC}"
+      [ "$QUIET" = false ] && echo -e "  ${GREEN}✓ Not installed (global): ${pkg}${NC}"
     elif check_version "$installed_ver" "$bad_versions"; then
       flag_hit "npm global" "$pkg" "$installed_ver" "$(npm root -g 2>/dev/null)/${pkg}"
     else
       flag_warn "npm global" "$pkg" "$installed_ver" "$bad_versions"
     fi
   done
-  echo ""
+  [ "$QUIET" = false ] && echo ""
 }
 
 # ── 2. Working tree — local package-lock.json files ───────────────────────────
 
 check_npm_working_tree() {
-  echo -e "${CYAN}▶ 2 / Working tree (checked-out branches)${NC}"
+  [ "$QUIET" = false ] && echo -e "${CYAN}▶ 2 / Working tree (checked-out branches)${NC}"
 
   if [ "${#RESOLVED_DIRS[@]}" -eq 0 ]; then
     echo -e "  ${YELLOW}No valid scan directories configured. Add paths in USER_SCAN_DIRS.${NC}\n"
     return
   fi
 
-  echo -e "  Scanning recursively:"
-  for d in "${RESOLVED_DIRS[@]}"; do echo -e "    • ${d}"; done
-  echo ""
+  if [ "$QUIET" = false ]; then
+    echo -e "  Scanning recursively:"
+    for d in "${RESOLVED_DIRS[@]}"; do echo -e "    • ${d}"; done
+    echo ""
+  fi
 
   mapfile -t LOCKFILES < <(
     find "${RESOLVED_DIRS[@]}" \
@@ -266,11 +274,11 @@ check_npm_working_tree() {
 
   total="${#LOCKFILES[@]}"
   if [ "$total" -eq 0 ]; then
-    echo -e "  ${YELLOW}No package-lock.json files found.\n${NC}"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}No package-lock.json files found.\n${NC}"
     return
   fi
 
-  echo -e "  Found ${total} lock file(s).\n"
+  [ "$QUIET" = false ] && echo -e "  Found ${total} lock file(s).\n"
 
   for lockfile in "${LOCKFILES[@]}"; do
     dir=$(dirname "$lockfile")
@@ -287,7 +295,7 @@ check_npm_working_tree() {
       [ -z "$installed_ver" ] && continue
 
       if [ "$file_header_printed" -eq 0 ]; then
-        echo -e "  ${BLUE}📁 ${dir}${NC}"
+        [ "$QUIET" = false ] && echo -e "  ${BLUE}📁 ${dir}${NC}"
         file_header_printed=1
       fi
 
@@ -306,15 +314,15 @@ check_npm_working_tree() {
 check_npm_branches() {
   [ "$CHECK_ALL_BRANCHES" = true ] || return
 
-  echo -e "${CYAN}▶ 3 / All git branches (non-checked-out)${NC}"
+  [ "$QUIET" = false ] && echo -e "${CYAN}▶ 3 / All git branches (non-checked-out)${NC}"
 
   if ! command -v git &>/dev/null; then
-    echo -e "  ${YELLOW}git not found — skipping branch scan.${NC}\n"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}git not found — skipping branch scan.${NC}\n"
     return
   fi
 
   if [ "${#RESOLVED_DIRS[@]}" -eq 0 ]; then
-    echo -e "  ${YELLOW}No valid scan directories configured.${NC}\n"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}No valid scan directories configured.${NC}\n"
     return
   fi
 
@@ -326,11 +334,11 @@ check_npm_branches() {
   )
 
   if [ "${#REPO_GIT_DIRS[@]}" -eq 0 ]; then
-    echo -e "  ${YELLOW}No git repositories found.\n${NC}"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}No git repositories found.\n${NC}"
     return
   fi
 
-  echo -e "  Found ${#REPO_GIT_DIRS[@]} git repo(s).\n"
+  [ "$QUIET" = false ] && echo -e "  Found ${#REPO_GIT_DIRS[@]} git repo(s).\n"
 
   for git_dir in "${REPO_GIT_DIRS[@]}"; do
     repo=$(dirname "$git_dir")
@@ -371,11 +379,11 @@ check_npm_branches() {
         [ -z "$installed_ver" ] && continue
 
         if [ "$repo_header_printed" -eq 0 ]; then
-          echo -e "  ${BLUE}📁 ${repo} ${BOLD}[${repo_name}]${NC}"
+          [ "$QUIET" = false ] && echo -e "  ${BLUE}📁 ${repo} ${BOLD}[${repo_name}]${NC}"
           repo_header_printed=1
         fi
         if [ "$branch_header_printed" -eq 0 ]; then
-          echo -e "  ${MAGENTA}   ⎇  branch: ${branch}${NC}"
+          [ "$QUIET" = false ] && echo -e "  ${MAGENTA}   ⎇  branch: ${branch}${NC}"
           branch_header_printed=1
         fi
 
@@ -387,7 +395,7 @@ check_npm_branches() {
       done
     done
   done
-  echo ""
+  [ "$QUIET" = false ] && echo ""
 }
 
 # ── 4. pip ────────────────────────────────────────────────────────────────────
@@ -395,7 +403,7 @@ check_npm_branches() {
 check_pip() {
   [ "${#PIP_COMPROMISED[@]}" -eq 0 ] && return
 
-  echo -e "${CYAN}▶ 4 / pip packages${NC}"
+  [ "$QUIET" = false ] && echo -e "${CYAN}▶ 4 / pip packages${NC}"
 
   local pip_cmd=""
   for cmd in pip3 pip; do
@@ -403,7 +411,7 @@ check_pip() {
   done
 
   if [ -z "$pip_cmd" ]; then
-    echo -e "  ${YELLOW}pip not found — skipping.\n${NC}"
+    [ "$QUIET" = false ] && echo -e "  ${YELLOW}pip not found — skipping.\n${NC}"
     return
   fi
 
@@ -421,7 +429,7 @@ check_pip() {
       flag_warn "pip ($pip_cmd)" "$pkg" "$installed_ver" "$bad_versions"
     fi
   done
-  echo ""
+  [ "$QUIET" = false ] && echo ""
 }
 
 # ── Header & Summary ──────────────────────────────────────────────────────────
