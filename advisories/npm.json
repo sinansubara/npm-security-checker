@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "updated": "2026-05-15",
+  "packages": [
+    {
+      "name": "@tanstack/router-utils",
+      "compromised_versions": ["1.161.11", "1.161.14"]
+    },
+    {
+      "name": "@tanstack/router-core",
+      "compromised_versions": ["1.169.5", "1.169.8"]
+    },
+    {
+      "name": "@opensearch-project/opensearch",
+      "compromised_versions": ["3.6.2"]
+    },
+    {
+      "name": "@uipath/docsai-tool",
+      "compromised_versions": ["1.0.1"]
+    },
+    {
+      "name": "@uipath/packager-tool-apiworkflow",
+      "compromised_versions": ["0.0.19"]
+    }
+  ]
+}
