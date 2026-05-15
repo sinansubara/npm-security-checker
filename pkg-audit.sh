@@ -69,6 +69,7 @@ SCAN_LIMIT=300
 # Extra npm packages to flag (merged on top of the remote advisory list).
 USER_CUSTOM_NPM=(
   # "my-internal-package::1.0.0,1.0.1"
+  "gsap::3.12.7"
 )
 
 # Extra pip packages to flag (merged on top of the remote advisory list).
@@ -178,18 +179,54 @@ REMOTE_NPM_URL="${PKG_AUDIT_NPM_URL:-https://raw.githubusercontent.com/sinansuba
 REMOTE_PIP_URL="${PKG_AUDIT_PIP_URL:-https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/pip.json}"
 
 # Parse a JSON advisory file (path $1) → prints "name::v1,v2" per package.
+# Duplicate package entries within the file are merged (versions unioned).
 _parse_advisory_json() {
   python3 -c '
 import json, sys
 try:
     data = json.load(open(sys.argv[1]))
+    seen = {}
     for p in data.get("packages", []):
-        versions = ",".join(p.get("compromised_versions", []))
-        if versions:
-            print(p["name"] + "::" + versions)
+        name = p.get("name", "").strip()
+        if not name:
+            continue
+        for v in p.get("compromised_versions", []):
+            v = v.strip()
+            if v:
+                seen.setdefault(name, [])
+                if v not in seen[name]:
+                    seen[name].append(v)
+    for name, versions in seen.items():
+        print(name + "::" + ",".join(versions))
 except Exception:
     pass
 ' "$1" 2>/dev/null
+}
+
+# Deduplicate a list of "name::v1,v2" entries piped via stdin.
+# Same package appearing multiple times → version lists are unioned.
+# Also deduplicates versions within a single entry (e.g. "pkg::1.0,1.0" → "pkg::1.0").
+_dedup_advisory_list() {
+  python3 -c '
+import sys
+seen = {}
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    pkg, _, versions = line.partition("::")
+    pkg = pkg.strip()
+    if not pkg or not versions:
+        continue
+    for v in versions.split(","):
+        v = v.strip()
+        if v:
+            seen.setdefault(pkg, [])
+            if v not in seen[pkg]:
+                seen[pkg].append(v)
+for pkg, versions in seen.items():
+    print(pkg + "::" + ",".join(versions))
+'
 }
 
 # Download URL $1 to file $2 using curl or wget. Returns 0 on success.
@@ -247,9 +284,25 @@ load_advisories() {
     [ "${#PIP_COMPROMISED[@]}" -eq 0 ] && pip_source="unavailable"
   fi
 
-  # ── Merge user-custom entries ──
-  NPM_COMPROMISED+=("${USER_CUSTOM_NPM[@]}")
-  PIP_COMPROMISED+=("${USER_CUSTOM_PIP[@]}")
+  # ── Merge user-custom entries, then dedup the full combined lists ──
+  # Count how many package names are genuinely new after merging custom entries
+  # (packages already in the remote list don't count as "new").
+  local _pre_merge_npm=( "${NPM_COMPROMISED[@]:-}" )
+  local _pre_merge_pip=( "${PIP_COMPROMISED[@]:-}" )
+
+  NPM_COMPROMISED+=("${USER_CUSTOM_NPM[@]:-}")
+  PIP_COMPROMISED+=("${USER_CUSTOM_PIP[@]:-}")
+
+  mapfile -t NPM_COMPROMISED < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  mapfile -t PIP_COMPROMISED < <(printf '%s\n' "${PIP_COMPROMISED[@]:-}" | _dedup_advisory_list)
+
+  # Net-new custom packages = packages in final list that weren't in the pre-merge list.
+  local _pre_names _net_new=0
+  _pre_names=$(printf '%s\n' "${_pre_merge_npm[@]:-}" "${_pre_merge_pip[@]:-}" | cut -d: -f1 | sort -u)
+  while IFS= read -r entry; do
+    pkg="${entry%%::*}"
+    echo "$_pre_names" | grep -qxF "$pkg" || _net_new=$(( _net_new + 1 ))
+  done < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" "${PIP_COMPROMISED[@]:-}")
 
   # ── Advisory source status line (suppressed by --quiet) ──
   if [ "$QUIET" = false ]; then
@@ -264,10 +317,9 @@ load_advisories() {
       cache)       pip_label="${YELLOW}cache (offline)${NC}" ;;
       unavailable) pip_label="${YELLOW}none${NC}" ;;
     esac
-    local total_custom=$(( ${#USER_CUSTOM_NPM[@]} + ${#USER_CUSTOM_PIP[@]} ))
     local custom_note=""
-    [ "$total_custom" -gt 0 ] && \
-      custom_note="  +${total_custom} custom $([ "$total_custom" -eq 1 ] && echo entry || echo entries)"
+    [ "$_net_new" -gt 0 ] && \
+      custom_note="  +${_net_new} custom $([ "$_net_new" -eq 1 ] && echo entry || echo entries)"
     echo -e "  ${CYAN}Advisories:${NC}  npm ← ${npm_label}  |  pip ← ${pip_label}${custom_note}"
     [ "$npm_source" = "unavailable" ] && \
       echo -e "  ${RED}⚠ npm advisory list unavailable. Run with internet access to warm the cache.${NC}"

@@ -7,6 +7,10 @@
       "compromised_versions": ["1.161.11", "1.161.14"]
     },
     {
+      "name": "@tanstack/router-utils",
+      "compromised_versions": ["1.161.14", "1.161.15"]
+    },
+    {
       "name": "gsap",
       "compromised_versions": ["3.12.7"]
     }

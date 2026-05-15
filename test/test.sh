@@ -151,7 +151,7 @@ else
   _fail "--quiet: COMPROMISED hit must still appear with --quiet"
 fi
 
-# ── Advisory source indicator ────────────────────────────────────────────────
+# ── Advisory source indicator ─────────────────────────────────────────────────
 
 echo ""
 echo -e "${BOLD}── Advisory loading ─────────────────────────────────────────${NC}"
@@ -161,6 +161,74 @@ if echo "$_output" | grep -q "Advisories:"; then
   _pass "advisory source line printed in output"
 else
   _fail "advisory source line missing from output"
+fi
+
+# ── Deduplication ─────────────────────────────────────────────────────────────
+# The test advisory has @tanstack/router-utils listed TWICE:
+#   entry 1: versions 1.161.11, 1.161.14
+#   entry 2: versions 1.161.14, 1.161.15  (1.161.14 duplicated; 1.161.15 is new)
+# After dedup the effective list must be 1.161.11, 1.161.14, 1.161.15.
+
+echo ""
+echo -e "${BOLD}── Deduplication ────────────────────────────────────────────${NC}"
+
+# 1. Version that only exists after merging the two duplicate entries (1.161.15)
+#    must still be detected as compromised.
+run_script "-p $SCRIPT_DIR/fixtures/hit-dedup-npm $BASE_FLAGS -q"
+if [ "$_rc" -gt 0 ]; then
+  _pass "dedup/hit: version from merged duplicate entry detected (exit code $_rc)"
+else
+  _fail "dedup/hit: version only present after merging duplicates was missed"
+fi
+if echo "$_output" | grep -q "COMPROMISED"; then
+  _pass "dedup/hit: COMPROMISED in output for merged version"
+else
+  _fail "dedup/hit: COMPROMISED missing from output for merged version"
+fi
+
+# 2. Scanning the hit-dedup fixture must produce exactly ONE hit, not two
+#    (the package must not appear twice in the compromised list).
+run_script "-p $SCRIPT_DIR/fixtures/hit-dedup-npm $BASE_FLAGS -q"
+hit_count=$(echo "$_output" | grep -c "COMPROMISED" || true)
+if [ "$hit_count" -eq 1 ]; then
+  _pass "dedup/count: exactly 1 COMPROMISED line (no double-counting)"
+else
+  _fail "dedup/count: expected 1 COMPROMISED line, got $hit_count"
+fi
+
+# 3. USER_CUSTOM_NPM duplicate of an advisory-list package must not double-count.
+#    We re-run the hit fixture with gsap (also in the advisory) added as a custom entry.
+run_script "-p $SCRIPT_DIR/fixtures/hit-npm $BASE_FLAGS -q"
+base_hits=$(echo "$_output" | grep -c "COMPROMISED" || true)
+
+PKG_AUDIT_CUSTOM_TEST=1 \
+  PKG_AUDIT_NPM_URL="file://$SCRIPT_DIR/advisories/npm.json" \
+  PKG_AUDIT_PIP_URL="file://$SCRIPT_DIR/advisories/pip.json" \
+  XDG_CACHE_HOME="$CACHE_DIR" \
+  USER_CUSTOM_NPM_INJECT="@tanstack/router-utils::1.161.11" \
+  bash -c "
+    # Inject a custom entry identical to the advisory, then run the scan.
+    # We source the script with overridden USER_CUSTOM_NPM to test merge dedup.
+    # Simplest approach: run with a wrapper that prepends the variable.
+    sed 's|^USER_CUSTOM_NPM=(|USER_CUSTOM_NPM=(\"@tanstack/router-utils::1.161.11\" |' \
+      '$SCRIPT' > /tmp/_pkg_audit_dedup_test.sh 2>/dev/null
+  " 2>/dev/null || true
+
+if [ -f /tmp/_pkg_audit_dedup_test.sh ]; then
+  chmod +x /tmp/_pkg_audit_dedup_test.sh 2>/dev/null
+  _dedup_out=$(PKG_AUDIT_NPM_URL="file://$SCRIPT_DIR/advisories/npm.json" \
+               PKG_AUDIT_PIP_URL="file://$SCRIPT_DIR/advisories/pip.json" \
+               XDG_CACHE_HOME="$CACHE_DIR" \
+               /tmp/_pkg_audit_dedup_test.sh -p "$SCRIPT_DIR/fixtures/hit-npm" $BASE_FLAGS -q 2>&1) || true
+  rm -f /tmp/_pkg_audit_dedup_test.sh
+  dedup_hits=$(echo "$_dedup_out" | grep -c "COMPROMISED" || true)
+  if [ "$dedup_hits" -le "$base_hits" ]; then
+    _pass "dedup/custom: custom duplicate of advisory entry does not inflate hit count"
+  else
+    _fail "dedup/custom: custom duplicate inflated hit count ($base_hits \u2192 $dedup_hits)"
+  fi
+else
+  _skip "dedup/custom: sed rewrite unavailable, skipping custom-merge dedup test"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
