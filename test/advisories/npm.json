@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "updated": "2026-05-15",
+  "packages": [
+    {
+      "name": "@tanstack/router-utils",
+      "compromised_versions": ["1.161.11", "1.161.14"]
+    },
+    {
+      "name": "gsap",
+      "compromised_versions": ["3.12.7"]
+    }
+  ]
+}

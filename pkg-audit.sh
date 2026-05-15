@@ -173,8 +173,9 @@ fi
 # ── Advisory loading ─────────────────────────────────────────────────────────
 
 # Remote advisory URLs — raw GitHub content from the default branch.
-REMOTE_NPM_URL="https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/npm.json"
-REMOTE_PIP_URL="https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/pip.json"
+# Override via env vars for testing: PKG_AUDIT_NPM_URL=file:///path/to/npm.json
+REMOTE_NPM_URL="${PKG_AUDIT_NPM_URL:-https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/npm.json}"
+REMOTE_PIP_URL="${PKG_AUDIT_PIP_URL:-https://raw.githubusercontent.com/sinansubara/npm-security-checker/master/advisories/pip.json}"
 
 # Parse a JSON advisory file (path $1) → prints "name::v1,v2" per package.
 _parse_advisory_json() {
