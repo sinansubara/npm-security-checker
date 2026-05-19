@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  ci:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate advisory JSON
+        run: |
+          for f in advisories/npm.json advisories/pip.json test/advisories/npm.json test/advisories/pip.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1])); print('OK', sys.argv[1])" "$f"
+          done
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get install -y shellcheck -qq
+          shellcheck --severity=warning pkg-audit.sh test/test.sh
+
+      - name: Integration tests
+        run: bash test/test.sh
+
+  # Separate job: verify the bash 3.2 compatibility fallback works on macOS.
+  # Runs /bin/bash explicitly — the system shell shipped with macOS, which
+  # predates mapfile and exercises the while-read path in _readarray.
+  compat-macos:
+    name: macOS bash 3.2 compat
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run tests under system bash 3.2
+        run: /bin/bash test/test.sh
