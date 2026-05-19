@@ -238,6 +238,7 @@ _readarray() {
   else
     local _tmp=()
     while IFS= read -r _line; do _tmp+=("$_line"); done
+    # shellcheck disable=SC2294  — eval is the only way to assign to a named array in bash 3.2
     eval "${_var}=(\"\${_tmp[@]:-}\")"
   fi
 }
