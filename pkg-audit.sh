@@ -435,6 +435,7 @@ check_npm_global() {
     return
   fi
 
+  local _section_found=$FOUND
   GLOBAL_LIST=$(npm list -g --depth=0 2>/dev/null)
 
   for entry in "${NPM_COMPROMISED[@]}"; do
@@ -450,7 +451,10 @@ check_npm_global() {
       flag_warn "npm global" "$pkg" "$installed_ver" "$bad_versions"
     fi
   done
-  [ "$QUIET" = false ] && echo ""
+  if [ "$QUIET" = false ]; then
+    [ "$FOUND" -eq "$_section_found" ] && echo -e "  ${GREEN}✓ No compromised global packages.${NC}"
+    echo ""
+  fi
 }
 
 # ── 2. Working tree — local package-lock.json files ───────────────────────────
@@ -497,6 +501,8 @@ check_npm_working_tree() {
 
   [ "$QUIET" = false ] && echo -e "  Found ${total} lock file(s).\n"
 
+  local _section_found=$FOUND
+
   for lockfile in "${LOCKFILES[@]}"; do
     dir=$(dirname "$lockfile")
     _is_excluded_path "$dir" && continue
@@ -524,7 +530,10 @@ check_npm_working_tree() {
       fi
     done
   done
-  echo ""
+  if [ "$QUIET" = false ]; then
+    [ "$FOUND" -eq "$_section_found" ] && echo -e "  ${GREEN}✓ No compromised packages in working tree.${NC}"
+    echo ""
+  fi
 }
 
 # ── 3. All git branches ───────────────────────────────────────────────────────
@@ -558,6 +567,8 @@ check_npm_branches() {
   fi
 
   [ "$QUIET" = false ] && echo -e "  Found ${#REPO_GIT_DIRS[@]} git repo(s).\n"
+
+  local _section_found=$FOUND
 
   for git_dir in "${REPO_GIT_DIRS[@]}"; do
     repo=$(dirname "$git_dir")
@@ -615,7 +626,10 @@ check_npm_branches() {
       done
     done
   done
-  [ "$QUIET" = false ] && echo ""
+  if [ "$QUIET" = false ]; then
+    [ "$FOUND" -eq "$_section_found" ] && echo -e "  ${GREEN}✓ No compromised packages across branches.${NC}"
+    echo ""
+  fi
 }
 
 # ── 4. pip ────────────────────────────────────────────────────────────────────
@@ -635,6 +649,7 @@ check_pip() {
     return
   fi
 
+  local _section_found=$FOUND
   PIP_LIST=$("$pip_cmd" list --format=columns 2>/dev/null)
 
   for entry in "${PIP_COMPROMISED[@]}"; do
@@ -649,7 +664,10 @@ check_pip() {
       flag_warn "pip ($pip_cmd)" "$pkg" "$installed_ver" "$bad_versions"
     fi
   done
-  [ "$QUIET" = false ] && echo ""
+  if [ "$QUIET" = false ]; then
+    [ "$FOUND" -eq "$_section_found" ] && echo -e "  ${GREEN}✓ No compromised pip packages.${NC}"
+    echo ""
+  fi
 }
 
 # ── Header & Summary ──────────────────────────────────────────────────────────
