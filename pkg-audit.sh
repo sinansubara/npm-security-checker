@@ -76,6 +76,12 @@ USER_CUSTOM_PIP=(
   # "my-internal-lib::2.3.4"
 )
 
+# Directories to exclude from all scans. Subdirectories are excluded too.
+USER_EXCLUDE_DIRS=(
+  "$HOME/workspace/npm-security-checker/test"  # exclude test fixtures from this tool itself
+  # "$HOME/workspace/my-project/vendor"
+)
+
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
 # │  🔒  SCRIPT INTERNALS — do not edit below this line                      │
@@ -370,6 +376,19 @@ check_version() {
   return 1
 }
 
+# Return 0 if $1 matches any path in USER_EXCLUDE_DIRS (prefix match, ~ expanded).
+# Usage: _is_excluded_path "$dir" && continue
+_is_excluded_path() {
+  local path="$1" excl expanded
+  for excl in "${USER_EXCLUDE_DIRS[@]}"; do
+    expanded="${excl/#\~/$HOME}"
+    case "$path" in
+      "$expanded"/*|"$expanded") return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # Parse a package-lock.json from stdin and print the version for a given package.
 # Uses -c so the script comes from an argument, leaving stdin free for lockfile content.
 # Usage: cat file | parse_lockfile_stdin "package-name"
@@ -466,6 +485,7 @@ check_npm_working_tree() {
 
   for lockfile in "${LOCKFILES[@]}"; do
     dir=$(dirname "$lockfile")
+    _is_excluded_path "$dir" && continue
     file_header_printed=0
 
     for entry in "${NPM_COMPROMISED[@]}"; do
