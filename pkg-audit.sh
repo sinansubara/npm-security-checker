@@ -191,16 +191,23 @@ import json, sys
 try:
     data = json.load(open(sys.argv[1]))
     seen = {}
+    any_ver = set()
     for p in data.get("packages", []):
         name = p.get("name", "").strip()
         if not name:
             continue
-        for v in p.get("compromised_versions", []):
+        versions = p.get("compromised_versions", [])
+        if not versions:
+            any_ver.add(name)
+            continue
+        for v in versions:
             v = v.strip()
             if v:
                 seen.setdefault(name, [])
                 if v not in seen[name]:
                     seen[name].append(v)
+    for name in any_ver:
+        print(name + "::*")
     for name, versions in seen.items():
         print(name + "::" + ",".join(versions))
 except Exception:
@@ -230,7 +237,10 @@ for line in sys.stdin:
             if v not in seen[pkg]:
                 seen[pkg].append(v)
 for pkg, versions in seen.items():
-    print(pkg + "::" + ",".join(versions))
+    if "*" in versions:
+        print(pkg + "::*")
+    else:
+        print(pkg + "::" + ",".join(versions))
 '
 }
 
@@ -354,8 +364,9 @@ load_advisories() {
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 flag_hit() {
-  local label="$1" pkg="$2" ver="$3" location="$4"
+  local label="$1" pkg="$2" ver="$3" location="$4" bad_versions="${5:-}"
   echo -e "  ${RED}${BOLD}✗ COMPROMISED${NC} ${RED}${label}: ${BOLD}${pkg}@${ver}${NC}"
+  [ "$bad_versions" = "*" ] && echo -e "    ${RED}   (malicious package — any version is unsafe)${NC}"
   echo -e "    ${RED}↳ ${location}${NC}"
   FOUND=$((FOUND + 1))
 }
@@ -369,6 +380,7 @@ flag_warn() {
 
 check_version() {
   local installed_ver="$1" bad_versions="$2"
+  [ "$bad_versions" = "*" ] && return 0
   IFS=',' read -ra BADS <<< "$bad_versions"
   for bv in "${BADS[@]}"; do
     [ "$installed_ver" = "$bv" ] && return 0
@@ -433,7 +445,7 @@ check_npm_global() {
     if [ -z "$installed_ver" ]; then
       [ "$QUIET" = false ] && echo -e "  ${GREEN}✓ Not installed (global): ${pkg}${NC}"
     elif check_version "$installed_ver" "$bad_versions"; then
-      flag_hit "npm global" "$pkg" "$installed_ver" "$(npm root -g 2>/dev/null)/${pkg}"
+      flag_hit "npm global" "$pkg" "$installed_ver" "$(npm root -g 2>/dev/null)/${pkg}" "$bad_versions"
     else
       flag_warn "npm global" "$pkg" "$installed_ver" "$bad_versions"
     fi
@@ -506,7 +518,7 @@ check_npm_working_tree() {
       fi
 
       if check_version "$installed_ver" "$bad_versions"; then
-        flag_hit "npm working tree" "$pkg" "$installed_ver" "$lockfile"
+        flag_hit "npm working tree" "$pkg" "$installed_ver" "$lockfile" "$bad_versions"
       else
         flag_warn "npm working tree" "$pkg" "$installed_ver" "$bad_versions"
       fi
@@ -596,7 +608,7 @@ check_npm_branches() {
         fi
 
         if check_version "$installed_ver" "$bad_versions"; then
-          flag_hit "branch" "$pkg" "$installed_ver" "${repo} @ ${branch}"
+          flag_hit "branch" "$pkg" "$installed_ver" "${repo} @ ${branch}" "$bad_versions"
         else
           flag_warn "branch" "$pkg" "$installed_ver" "$bad_versions"
         fi
@@ -632,7 +644,7 @@ check_pip() {
     [ -z "$installed_ver" ] && continue
 
     if check_version "$installed_ver" "$bad_versions"; then
-      flag_hit "pip ($pip_cmd)" "$pkg" "$installed_ver" "$pip_cmd"
+      flag_hit "pip ($pip_cmd)" "$pkg" "$installed_ver" "$pip_cmd" "$bad_versions"
     else
       flag_warn "pip ($pip_cmd)" "$pkg" "$installed_ver" "$bad_versions"
     fi
