@@ -1,34 +1,34 @@
 #!/bin/bash
 
-# ╔══════════════════════════════════════════════════════════════════════════╗
-# ║             NPM / Pip Security – Compromised Package Checker             ║
-# ║                  Works on: Linux / Ubuntu / macOS                        ║
-# ╠══════════════════════════════════════════════════════════════════════════╣
-# ║  Usage:                                                                  ║
-# ║    chmod +x pkg-audit.sh                                                 ║
-# ║    ./pkg-audit.sh                                                        ║
-# ║                                                                          ║
-# ║  Flags (all optional, order-independent):                                ║
-# ║    --path <dir>  / -p <dir>   scan only this dir (replaces config)      ║
-# ║    --append      / -a         append --path dir on top of config dirs    ║
-# ║    --branches    / -b         also scan all git branches (slow)          ║
-# ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300) ║
-# ║    --no-global                skip global npm package check               ║
-# ║    --quiet       / -q         only print hits and errors (no safe lines)  ║
-# ║    --npm-only                 skip pip check entirely                    ║
-# ║    --pip-only                 skip all npm checks (global + working tree) ║
-# ║                                                                          ║
-# ║  Examples:                                                               ║
-# ║    ./pkg-audit.sh -p /my/project                                         ║
-# ║    ./pkg-audit.sh -p /my/project -a          # append to config dirs     ║
-# ║    ./pkg-audit.sh -p /my/project -a -b       # + branch scan             ║
-# ║    ./pkg-audit.sh --branches                 # config dirs + branches    ║
-# ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files       ║
-# ║    ./pkg-audit.sh --no-global                # skip global npm check      ║
-# ║    ./pkg-audit.sh -q                         # hits and errors only       ║
-# ║    ./pkg-audit.sh --npm-only                 # skip pip                   ║
-# ║    ./pkg-audit.sh --pip-only                 # skip all npm checks        ║
-# ╚══════════════════════════════════════════════════════════════════════════╝
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║                  NPM / Pip Security – Compromised Package Checker             ║
+# ║                       Works on: Linux / Ubuntu / macOS                        ║
+# ╠═══════════════════════════════════════════════════════════════════════════════╣
+# ║  Usage:                                                                       ║
+# ║    chmod +x pkg-audit.sh                                                      ║
+# ║    ./pkg-audit.sh                                                             ║
+# ║                                                                               ║
+# ║  Flags (all optional, order-independent):                                     ║
+# ║    --path <dir>  / -p <dir>   scan only this dir (replaces config)            ║
+# ║    --append      / -a         append --path dir on top of config dirs         ║
+# ║    --branches    / -b         also scan all git branches (slow)               ║
+# ║    --limit <n>   / -l <n>     override max lock files scanned (default: 300)  ║
+# ║    --no-global                skip global npm package check                   ║
+# ║    --quiet       / -q         only print hits and errors (no safe lines)      ║
+# ║    --npm-only                 skip pip check entirely                         ║
+# ║    --pip-only                 skip all npm checks (global + working tree)     ║
+# ║                                                                               ║
+# ║  Examples:                                                                    ║
+# ║    ./pkg-audit.sh -p /my/project                                              ║
+# ║    ./pkg-audit.sh -p /my/project -a          # append to config dirs          ║
+# ║    ./pkg-audit.sh -p /my/project -a -b       # + branch scan                  ║
+# ║    ./pkg-audit.sh --branches                 # config dirs + branches         ║
+# ║    ./pkg-audit.sh -l 50                      # cap at 50 lock files           ║
+# ║    ./pkg-audit.sh --no-global                # skip global npm check          ║
+# ║    ./pkg-audit.sh -q                         # hits and errors only           ║
+# ║    ./pkg-audit.sh --npm-only                 # skip pip                       ║
+# ║    ./pkg-audit.sh --pip-only                 # skip all npm checks            ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
@@ -59,11 +59,11 @@ SCAN_LIMIT=300
 
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
-# │  ➕  CUSTOM PACKAGES — optional user-defined additions                  │
-# │      The compromised-package lists are fetched automatically from       │
-# │      GitHub on each run and cached locally for offline use.             │
-# │      Add entries here only for packages not yet in the remote list.     │
-# │      Format: "package-name::bad_version1,bad_version2"                  │
+# │  ➕  CUSTOM PACKAGES — optional user-defined additions                   │
+# │      The compromised-package lists are fetched automatically from        │
+# │      GitHub on each run and cached locally for offline use.              │
+# │      Add entries here only for packages not yet in the remote list.      │
+# │      Format: "package-name::bad_version1,bad_version2"                   │
 # └──────────────────────────────────────────────────────────────────────────┘
 
 # Extra npm packages to flag (merged on top of the remote advisory list).
@@ -78,7 +78,7 @@ USER_CUSTOM_PIP=(
 
 
 # ┌──────────────────────────────────────────────────────────────────────────┐
-# │  🔒  SCRIPT INTERNALS — do not edit below this line                     │
+# │  🔒  SCRIPT INTERNALS — do not edit below this line                      │
 # └──────────────────────────────────────────────────────────────────────────┘
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
