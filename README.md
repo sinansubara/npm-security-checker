@@ -122,13 +122,35 @@ Advisories:  npm ← remote  |  pip ← remote
 ## Adding a new advisory
 
 1. Edit [`advisories/npm.json`](advisories/npm.json) (or `pip.json`)
-2. Add an entry following the existing schema:
+2. Add an entry to the `packages` array — two forms are supported:
+
+   **Specific compromised versions** (the package is safe at other versions):
    ```json
    {
      "name": "package-name",
+     "source": "https://link-to-advisory",
      "compromised_versions": ["1.2.3", "1.2.4"]
    }
    ```
+
+   **Entirely fake / malicious package** (any version installed → flag it):
+   ```json
+   {
+     "name": "fake-package-name",
+     "source": "https://link-to-advisory"
+   }
+   ```
+
+   For incidents covering many packages at once, add a top-level `references` array:
+   ```json
+   {
+     "schema": 1,
+     "updated": "2026-05-20",
+     "references": ["https://link-to-incident-report"],
+     "packages": [ ... ]
+   }
+   ```
+
 3. Open a PR — see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Exit codes
