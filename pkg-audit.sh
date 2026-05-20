@@ -41,7 +41,7 @@
 # ~ is expanded automatically.
 USER_SCAN_DIRS=(
   # "~"               # CAUTION: scanning your entire home can be slow — noisy dirs are auto-skipped (node_modules, .npm, .cache, .nvm…)
-  "~/workspace"     # <- use a specific folder to speed things up
+  "~/workspace"     # <- use a specific folder to speed things up  # shellcheck disable=SC2088
   # "~/side-projects" # <- uncomment or add more root folders as needed
   # "/opt/company"
 )
@@ -238,7 +238,7 @@ _readarray() {
   else
     local _tmp=()
     while IFS= read -r _line; do _tmp+=("$_line"); done
-    # shellcheck disable=SC2294  — eval is the only way to assign to a named array in bash 3.2
+    # shellcheck disable=SC2294 - eval is the only way to assign to a named array in bash 3.2
     eval "${_var}=(\"\${_tmp[@]:-}\")"
   fi
 }
