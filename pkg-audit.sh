@@ -229,17 +229,18 @@ for pkg, versions in seen.items():
 '
 }
 
-# Portable array-from-stdin loader: _readarray VARNAME < <(command)
+# Portable array-from-stdin loader. Result is placed in the global array _RA.
 # Uses mapfile on bash 4+ (fast built-in); falls back to while-read on bash 3.2 (macOS).
+# No eval or dynamic variable names — fully ShellCheck-clean.
+# Usage:  _readarray < <(command)
+#         MY_ARRAY=("${_RA[@]:-}")
+_RA=()
 _readarray() {
-  local _var="$1"
+  _RA=()
   if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then
-    mapfile -t "$_var"
+    mapfile -t _RA
   else
-    local _tmp=()
-    while IFS= read -r _line; do _tmp+=("$_line"); done
-    # shellcheck disable=SC2294 - eval is the only way to assign to a named array in bash 3.2
-    eval "${_var}=(\"\${_tmp[@]:-}\")"
+    while IFS= read -r _line; do _RA+=("$_line"); done
   fi
 }
 
@@ -280,7 +281,8 @@ load_advisories() {
     [ -f "$npm_cache" ] && npm_source="cache"
   fi
   if [ "$npm_source" != "unavailable" ]; then
-    _readarray NPM_COMPROMISED < <(_parse_advisory_json "$npm_cache")
+    _readarray < <(_parse_advisory_json "$npm_cache")
+    NPM_COMPROMISED=("${_RA[@]:-}")
     [ "${#NPM_COMPROMISED[@]}" -eq 0 ] && npm_source="unavailable"
   fi
 
@@ -294,7 +296,8 @@ load_advisories() {
     [ -f "$pip_cache" ] && pip_source="cache"
   fi
   if [ "$pip_source" != "unavailable" ]; then
-    _readarray PIP_COMPROMISED < <(_parse_advisory_json "$pip_cache")
+    _readarray < <(_parse_advisory_json "$pip_cache")
+    PIP_COMPROMISED=("${_RA[@]:-}")
     [ "${#PIP_COMPROMISED[@]}" -eq 0 ] && pip_source="unavailable"
   fi
 
@@ -307,8 +310,10 @@ load_advisories() {
   NPM_COMPROMISED+=("${USER_CUSTOM_NPM[@]:-}")
   PIP_COMPROMISED+=("${USER_CUSTOM_PIP[@]:-}")
 
-  _readarray NPM_COMPROMISED < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" | _dedup_advisory_list)
-  _readarray PIP_COMPROMISED < <(printf '%s\n' "${PIP_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  _readarray < <(printf '%s\n' "${NPM_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  NPM_COMPROMISED=("${_RA[@]:-}")
+  _readarray < <(printf '%s\n' "${PIP_COMPROMISED[@]:-}" | _dedup_advisory_list)
+  PIP_COMPROMISED=("${_RA[@]:-}")
 
   # Net-new custom packages = packages in final list that weren't in the pre-merge list.
   local _pre_names _net_new=0
@@ -432,7 +437,7 @@ check_npm_working_tree() {
     echo ""
   fi
 
-  _readarray LOCKFILES < <(
+  _readarray < <(
     find "${RESOLVED_DIRS[@]}" \
       \( \
         -name "node_modules" \
@@ -450,6 +455,7 @@ check_npm_working_tree() {
       -o -name "package-lock.json" -print \
       2>/dev/null | sort -u | head -n "$SCAN_LIMIT"
   )
+  LOCKFILES=("${_RA[@]:-}")
 
   total="${#LOCKFILES[@]}"
   if [ "$total" -eq 0 ]; then
@@ -508,9 +514,10 @@ check_npm_branches() {
   # Find git repo roots only (where .git is a directory, not a file).
   # Worktrees have .git as a file — they are already covered by the working
   # tree scan above, so we intentionally skip them here.
-  _readarray REPO_GIT_DIRS < <(
+  _readarray < <(
     find "${RESOLVED_DIRS[@]}" -name ".git" -type d 2>/dev/null | sort -u
   )
+  REPO_GIT_DIRS=("${_RA[@]:-}")
 
   if [ "${#REPO_GIT_DIRS[@]}" -eq 0 ]; then
     [ "$QUIET" = false ] && echo -e "  ${YELLOW}No git repositories found.\n${NC}"
@@ -527,12 +534,13 @@ check_npm_branches() {
     current_branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null)
 
     # Collect local + remote branches, deduplicated, excluding current
-    _readarray BRANCHES < <(
+    _readarray < <(
       {
         git -C "$repo" branch --format='%(refname:short)' 2>/dev/null
         git -C "$repo" branch -r --format='%(refname:short)' 2>/dev/null
       } | sort -u | grep -vF "$current_branch" | grep -v '^HEAD'
     )
+    BRANCHES=("${_RA[@]:-}")
 
     if [ "${#BRANCHES[@]}" -eq 0 ]; then
       continue
