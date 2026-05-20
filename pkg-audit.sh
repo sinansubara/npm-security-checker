@@ -69,7 +69,6 @@ SCAN_LIMIT=300
 # Extra npm packages to flag (merged on top of the remote advisory list).
 USER_CUSTOM_NPM=(
   # "my-internal-package::1.0.0,1.0.1"
-  "gsap::3.12.7"
 )
 
 # Extra pip packages to flag (merged on top of the remote advisory list).
