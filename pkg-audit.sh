@@ -78,7 +78,7 @@ USER_CUSTOM_PIP=(
 
 # Directories to exclude from all scans. Subdirectories are excluded too.
 USER_EXCLUDE_DIRS=(
-  "$HOME/workspace/npm-security-checker/test"  # exclude test fixtures from this tool itself
+  "$HOME/workspace/npm-security-checker/test"  # exclude this tool's own test fixtures
   # "$HOME/workspace/my-project/vendor"
 )
 
@@ -377,8 +377,10 @@ check_version() {
 }
 
 # Return 0 if $1 matches any path in USER_EXCLUDE_DIRS (prefix match, ~ expanded).
+# Set PKG_AUDIT_NO_EXCLUDES=1 to bypass (used by the test suite).
 # Usage: _is_excluded_path "$dir" && continue
 _is_excluded_path() {
+  [ "${PKG_AUDIT_NO_EXCLUDES:-}" = "1" ] && return 1
   local path="$1" excl expanded
   for excl in "${USER_EXCLUDE_DIRS[@]}"; do
     expanded="${excl/#\~/$HOME}"

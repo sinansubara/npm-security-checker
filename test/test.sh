@@ -50,6 +50,7 @@ mkdir -p "$CACHE_DIR/pkg-audit"
 export XDG_CACHE_HOME="$CACHE_DIR"
 export PKG_AUDIT_NPM_URL="file://$SCRIPT_DIR/advisories/npm.json"
 export PKG_AUDIT_PIP_URL="file://$SCRIPT_DIR/advisories/pip.json"
+export PKG_AUDIT_NO_EXCLUDES=1  # run against fixtures regardless of USER_EXCLUDE_DIRS
 
 # Shared flags: skip global npm (system-state) and pip (no pip fixtures yet)
 BASE_FLAGS="--no-global --npm-only"
@@ -237,9 +238,11 @@ echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
 total=$(( PASS + FAIL + SKIP ))
 if [ "$FAIL" -eq 0 ]; then
-  echo -e "${BOLD}║  ${GREEN}✓  ${PASS}/${total} tests passed${NC}${BOLD}$(printf '%*s' $(( 38 - ${#PASS} - ${#total} )) '')║${NC}"
+  printf -v _pad '%*s' $(( 39 - ${#PASS} - ${#total} )) ''
+  echo -e "${BOLD}║  ${GREEN}✓  ${PASS}/${total} tests passed${NC}${BOLD}${_pad}║${NC}"
 else
-  echo -e "${BOLD}║  ${RED}✗  ${FAIL} failed, ${PASS} passed (${total} total)${NC}${BOLD}$(printf '%*s' $(( 26 - ${#FAIL} - ${#PASS} - ${#total} )) '')║${NC}"
+  printf -v _pad '%*s' $(( 28 - ${#FAIL} - ${#PASS} - ${#total} )) ''
+  echo -e "${BOLD}║  ${RED}✗  ${FAIL} failed, ${PASS} passed (${total} total)${NC}${BOLD}${_pad}║${NC}"
 fi
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
