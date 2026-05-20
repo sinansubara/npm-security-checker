@@ -40,10 +40,10 @@
 # Adding ~/workspace will automatically scan every repository inside it.
 # ~ is expanded automatically.
 USER_SCAN_DIRS=(
-  # '~'               # CAUTION: scanning your entire home can be slow — noisy dirs are auto-skipped (node_modules, .npm, .cache, .nvm…)
-  '~/workspace'       # <- use a specific folder to speed things up
-  # '~/side-projects' # <- uncomment or add more root folders as needed
-  # '/opt/company'
+  # "$HOME"                 # CAUTION: scanning your entire home can be slow — noisy dirs are auto-skipped (node_modules, .npm, .cache, .nvm…)
+  "$HOME/workspace"         # <- use a specific folder to speed things up
+  # "$HOME/side-projects"   # <- uncomment or add more root folders as needed
+  # "/opt/company"
 )
 
 # Set to true to also check package-lock.json across ALL git branches
